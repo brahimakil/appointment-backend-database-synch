@@ -1,6 +1,5 @@
 const admin = require('firebase-admin');
 const { logger } = require('../utils/logger');
-const path = require('path');
 
 // Enhanced error logging function
 const logDetailedError = (error, context) => {
@@ -12,16 +11,55 @@ const logDetailedError = (error, context) => {
   });
 };
 
+// More robust private key parsing
+const parsePrivateKey = (privateKeyEnv) => {
+  if (!privateKeyEnv) {
+    throw new Error('Private key environment variable is not set');
+  }
+
+  try {
+    // Handle different formats of private key
+    let privateKey = privateKeyEnv;
+    
+    // Remove surrounding quotes if present
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+      privateKey = privateKey.slice(1, -1);
+    }
+    
+    // Replace escaped newlines with actual newlines
+    privateKey = privateKey.replace(/\\n/g, '\n');
+    
+    // Ensure proper formatting
+    if (!privateKey.includes('-----BEGIN PRIVATE KEY-----') || 
+        !privateKey.includes('-----END PRIVATE KEY-----')) {
+      throw new Error('Private key format is invalid - missing BEGIN/END markers');
+    }
+    
+    // Log private key structure for debugging (without exposing actual key)
+    logger.info('🔑 Private key validation:', {
+      hasBeginMarker: privateKey.includes('-----BEGIN PRIVATE KEY-----'),
+      hasEndMarker: privateKey.includes('-----END PRIVATE KEY-----'),
+      length: privateKey.length,
+      lineCount: privateKey.split('\n').length
+    });
+    
+    return privateKey;
+  } catch (error) {
+    logger.error('❌ Failed to parse private key:', error);
+    throw error;
+  }
+};
+
 // Validate and parse service account credentials with more robust error handling
 const parseServiceAccount = (prefix) => {
   try {
+    logger.info(`🔍 Parsing service account for ${prefix}...`);
+    
     const serviceAccount = {
       type: process.env[`${prefix}TYPE`],
       project_id: process.env[`${prefix}PROJECT_ID`],
       private_key_id: process.env[`${prefix}PRIVATE_KEY_ID`],
-      private_key: process.env[`${prefix}PRIVATE_KEY`]
-        ? process.env[`${prefix}PRIVATE_KEY`].replace(/\\n/g, '\n')
-        : undefined,
+      private_key: parsePrivateKey(process.env[`${prefix}PRIVATE_KEY`]),
       client_email: process.env[`${prefix}CLIENT_EMAIL`],
       client_id: process.env[`${prefix}CLIENT_ID`],
       auth_uri: process.env[`${prefix}AUTH_URI`],
@@ -39,9 +77,27 @@ const parseServiceAccount = (prefix) => {
       throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
     }
 
+    // Log successful parsing (without sensitive data)
+    logger.info(`✅ Service account parsed successfully for ${prefix}`, {
+      project_id: serviceAccount.project_id,
+      client_email: serviceAccount.client_email,
+      private_key_id: serviceAccount.private_key_id
+    });
+
     return serviceAccount;
   } catch (error) {
     logger.error(`❌ Failed to parse service account credentials for ${prefix}:`, error);
+    
+    // Log environment variable status for debugging
+    logger.error('Environment Variables Status:', {
+      [`${prefix}TYPE`]: process.env[`${prefix}TYPE`] ? 'SET' : 'NOT SET',
+      [`${prefix}PROJECT_ID`]: process.env[`${prefix}PROJECT_ID`] ? 'SET' : 'NOT SET',
+      [`${prefix}PRIVATE_KEY_ID`]: process.env[`${prefix}PRIVATE_KEY_ID`] ? 'SET' : 'NOT SET',
+      [`${prefix}PRIVATE_KEY`]: process.env[`${prefix}PRIVATE_KEY`] ? 'SET' : 'NOT SET',
+      [`${prefix}CLIENT_EMAIL`]: process.env[`${prefix}CLIENT_EMAIL`] ? 'SET' : 'NOT SET',
+      [`${prefix}CLIENT_ID`]: process.env[`${prefix}CLIENT_ID`] ? 'SET' : 'NOT SET',
+    });
+    
     throw error;
   }
 };
@@ -53,16 +109,7 @@ try {
   backupServiceAccount = parseServiceAccount('BACKUP_FIREBASE_');
 } catch (error) {
   logger.error('❌ Failed to parse service account credentials:', error);
-  // Log all environment variables for debugging
-  logger.error('Environment Variables:', {
-    FIREBASE_TYPE: process.env.FIREBASE_TYPE,
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
-    FIREBASE_PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID,
-    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
-    FIREBASE_CLIENT_ID: process.env.FIREBASE_CLIENT_ID,
-    // Add other variables as needed
-  });
-  throw error;
+  process.exit(1); // Exit if credentials are invalid
 }
 
 // Initialize Firebase Admin SDK for main database
