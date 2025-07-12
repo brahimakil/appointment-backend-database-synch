@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "build": "echo 'Backend ready for deployment'"
+    "build": "npm install"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",
@@ -22,6 +22,6 @@
     "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": "18.x"
   }
 } 

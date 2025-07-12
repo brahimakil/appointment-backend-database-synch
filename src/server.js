@@ -56,7 +56,7 @@ if (!fs.existsSync('logs')) {
   fs.mkdirSync('logs');
 }
 
-// Initialize enhanced sync service
+// Initialize enhanced sync service ONLY ONCE
 const syncService = new EnhancedSyncService(io);
 
 // Root route for backend health check
@@ -67,9 +67,6 @@ app.get('/', (req, res) => {
     uptime: process.uptime()
   });
 });
-
-// Initialize enhanced sync service
-const syncService = new EnhancedSyncService(io);
 
 // Initialize health checks
 syncService.init();
