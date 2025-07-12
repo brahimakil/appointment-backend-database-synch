@@ -2,51 +2,85 @@ const admin = require('firebase-admin');
 const { logger } = require('../utils/logger');
 const path = require('path');
 
-// Construct service account credentials from environment variables
-const mainServiceAccount = {
-  type: process.env.FIREBASE_TYPE,
-  project_id: process.env.FIREBASE_PROJECT_ID,
-  private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-  private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  client_email: process.env.FIREBASE_CLIENT_EMAIL,
-  client_id: process.env.FIREBASE_CLIENT_ID,
-  auth_uri: process.env.FIREBASE_AUTH_URI,
-  token_uri: process.env.FIREBASE_TOKEN_URI,
-  auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_CERT_URL,
-  client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
-  universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN
+// Enhanced error logging function
+const logDetailedError = (error, context) => {
+  logger.error(`❌ Firebase Connection Error in ${context}:`, {
+    message: error.message,
+    code: error.code,
+    stack: error.stack,
+    details: error.details || 'No additional details',
+  });
 };
 
-const backupServiceAccount = {
-  type: process.env.BACKUP_FIREBASE_TYPE,
-  project_id: process.env.BACKUP_FIREBASE_PROJECT_ID,
-  private_key_id: process.env.BACKUP_FIREBASE_PRIVATE_KEY_ID,
-  private_key: process.env.BACKUP_FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  client_email: process.env.BACKUP_FIREBASE_CLIENT_EMAIL,
-  client_id: process.env.BACKUP_FIREBASE_CLIENT_ID,
-  auth_uri: process.env.BACKUP_FIREBASE_AUTH_URI,
-  token_uri: process.env.BACKUP_FIREBASE_TOKEN_URI,
-  auth_provider_x509_cert_url: process.env.BACKUP_FIREBASE_AUTH_PROVIDER_CERT_URL,
-  client_x509_cert_url: process.env.BACKUP_FIREBASE_CLIENT_CERT_URL,
-  universe_domain: process.env.BACKUP_FIREBASE_UNIVERSE_DOMAIN
+// Validate and parse service account credentials with more robust error handling
+const parseServiceAccount = (prefix) => {
+  try {
+    const serviceAccount = {
+      type: process.env[`${prefix}TYPE`],
+      project_id: process.env[`${prefix}PROJECT_ID`],
+      private_key_id: process.env[`${prefix}PRIVATE_KEY_ID`],
+      private_key: process.env[`${prefix}PRIVATE_KEY`]
+        ? process.env[`${prefix}PRIVATE_KEY`].replace(/\\n/g, '\n')
+        : undefined,
+      client_email: process.env[`${prefix}CLIENT_EMAIL`],
+      client_id: process.env[`${prefix}CLIENT_ID`],
+      auth_uri: process.env[`${prefix}AUTH_URI`],
+      token_uri: process.env[`${prefix}TOKEN_URI`],
+      auth_provider_x509_cert_url: process.env[`${prefix}AUTH_PROVIDER_CERT_URL`],
+      client_x509_cert_url: process.env[`${prefix}CLIENT_CERT_URL`],
+      universe_domain: process.env[`${prefix}UNIVERSE_DOMAIN`]
+    };
+
+    // Validate required fields
+    const requiredFields = ['type', 'project_id', 'private_key', 'client_email', 'client_id'];
+    const missingFields = requiredFields.filter(field => !serviceAccount[field]);
+
+    if (missingFields.length > 0) {
+      throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+
+    return serviceAccount;
+  } catch (error) {
+    logger.error(`❌ Failed to parse service account credentials for ${prefix}:`, error);
+    throw error;
+  }
 };
+
+// Attempt to parse service accounts
+let mainServiceAccount, backupServiceAccount;
+try {
+  mainServiceAccount = parseServiceAccount('FIREBASE_');
+  backupServiceAccount = parseServiceAccount('BACKUP_FIREBASE_');
+} catch (error) {
+  logger.error('❌ Failed to parse service account credentials:', error);
+  // Log all environment variables for debugging
+  logger.error('Environment Variables:', {
+    FIREBASE_TYPE: process.env.FIREBASE_TYPE,
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID,
+    FIREBASE_PRIVATE_KEY_ID: process.env.FIREBASE_PRIVATE_KEY_ID,
+    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL,
+    FIREBASE_CLIENT_ID: process.env.FIREBASE_CLIENT_ID,
+    // Add other variables as needed
+  });
+  throw error;
+}
 
 // Initialize Firebase Admin SDK for main database
 const mainApp = admin.initializeApp({
   credential: admin.credential.cert(mainServiceAccount),
-  projectId: process.env.FIREBASE_PROJECT_ID
+  projectId: mainServiceAccount.project_id
 }, 'main');
 
 // Initialize Firebase Admin SDK for backup database
 const backupApp = admin.initializeApp({
   credential: admin.credential.cert(backupServiceAccount),
-  projectId: process.env.BACKUP_FIREBASE_PROJECT_ID
+  projectId: backupServiceAccount.project_id
 }, 'backup');
 
 const mainDb = admin.firestore(mainApp);
 const backupDb = admin.firestore(backupApp);
 
-// Test database connections
+// Enhanced test connections with more detailed error logging
 const testConnections = async () => {
   try {
     await mainDb.collection('users').limit(1).get();
@@ -63,7 +97,7 @@ const testConnections = async () => {
     
     return { mainDb: true, backupDb: true, mainAuth: true, backupAuth: true };
   } catch (error) {
-    logger.error('❌ Database/Auth connection test failed:', error);
+    logDetailedError(error, 'testConnections');
     return { mainDb: false, backupDb: false, mainAuth: false, backupAuth: false };
   }
 };
@@ -76,7 +110,7 @@ const checkMainDbHealth = async () => {
     logger.info('✅ Main database health check passed');
     return true;
   } catch (error) {
-    logger.error('❌ Main database health check failed:', error.message);
+    logDetailedError(error, 'checkMainDbHealth');
     return false;
   }
 };
@@ -89,7 +123,7 @@ const checkBackupDbHealth = async () => {
     logger.info('✅ Backup database health check passed');
     return true;
   } catch (error) {
-    logger.error('❌ Backup database health check failed:', error.message);
+    logDetailedError(error, 'checkBackupDbHealth');
     return false;
   }
 };
@@ -102,7 +136,7 @@ const checkMainAuthHealth = async () => {
     logger.info('✅ Main auth health check passed');
     return true;
   } catch (error) {
-    logger.error('❌ Main auth health check failed:', error.message);
+    logDetailedError(error, 'checkMainAuthHealth');
     return false;
   }
 };
@@ -115,7 +149,7 @@ const checkBackupAuthHealth = async () => {
     logger.info('✅ Backup auth health check passed');
     return true;
   } catch (error) {
-    logger.error('❌ Backup auth health check failed:', error.message);
+    logDetailedError(error, 'checkBackupAuthHealth');
     return false;
   }
 };
