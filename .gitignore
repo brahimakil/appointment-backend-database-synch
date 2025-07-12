@@ -1,4 +1,6 @@
-
+# Firebase Service Account Keys
+main-service-account.json
+backup-service-account.json
 
 # Logs
 logs

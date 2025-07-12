@@ -2,15 +2,25 @@ const admin = require('firebase-admin');
 const { logger } = require('../utils/logger');
 const path = require('path');
 
+// Parse service account credentials from environment variables
+const parseServiceAccount = (credentialsJson) => {
+  try {
+    return JSON.parse(credentialsJson);
+  } catch (error) {
+    logger.error('❌ Failed to parse service account credentials:', error);
+    throw new Error('Invalid service account credentials');
+  }
+};
+
 // Initialize Firebase Admin SDK for main database
-const mainServiceAccount = require(path.join(__dirname, '../../main-service-account.json'));
+const mainServiceAccount = parseServiceAccount(process.env.MAIN_SERVICE_ACCOUNT_JSON);
 const mainApp = admin.initializeApp({
   credential: admin.credential.cert(mainServiceAccount),
   projectId: 'ai-client-system'
 }, 'main');
 
 // Initialize Firebase Admin SDK for backup database
-const backupServiceAccount = require(path.join(__dirname, '../../backup-service-account.json'));
+const backupServiceAccount = parseServiceAccount(process.env.BACKUP_SERVICE_ACCOUNT_JSON);
 const backupApp = admin.initializeApp({
   credential: admin.credential.cert(backupServiceAccount),
   projectId: 'ai-client-system-backup'
