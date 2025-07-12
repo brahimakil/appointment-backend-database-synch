@@ -2,18 +2,20 @@ const admin = require('firebase-admin');
 const { logger } = require('../utils/logger');
 const path = require('path');
 
-// Initialize Firebase Admin SDK for main database
+// Directly load service account credentials from JSON files
 const mainServiceAccount = require(path.join(__dirname, '../../main-service-account.json'));
+const backupServiceAccount = require(path.join(__dirname, '../../backup-service-account.json'));
+
+// Initialize Firebase Admin SDK for main database
 const mainApp = admin.initializeApp({
   credential: admin.credential.cert(mainServiceAccount),
-  projectId: 'ai-client-system'
+  projectId: mainServiceAccount.project_id
 }, 'main');
 
 // Initialize Firebase Admin SDK for backup database
-const backupServiceAccount = require(path.join(__dirname, '../../backup-service-account.json'));
 const backupApp = admin.initializeApp({
   credential: admin.credential.cert(backupServiceAccount),
-  projectId: 'ai-client-system-backup'
+  projectId: backupServiceAccount.project_id
 }, 'backup');
 
 const mainDb = admin.firestore(mainApp);
