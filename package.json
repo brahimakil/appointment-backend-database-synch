@@ -1,14 +1,12 @@
 {
   "name": "firebase-sync-system",
   "version": "1.0.0",
-  "description": "Brilliant Firebase Database Synchronization System with Real-time Monitoring",
+  "description": "Firebase Database Synchronization System Backend",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "frontend": "cd frontend && npm start",
-    "install-all": "npm install && cd frontend && npm install",
-    "build": "cd frontend && npm run build"
+    "build": "echo 'Backend ready for deployment'"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0",
@@ -17,12 +15,13 @@
     "dotenv": "^16.3.1",
     "socket.io": "^4.7.4",
     "winston": "^3.11.0",
-    "node-cron": "^3.0.3",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "node-cron": "^3.0.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.1"
   },
-  "author": "Firebase Sync System",
-  "license": "MIT"
+  "engines": {
+    "node": ">=16.0.0"
+  }
 } 

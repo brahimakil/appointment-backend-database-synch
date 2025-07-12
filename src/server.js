@@ -14,20 +14,24 @@ const EnhancedSyncService = require('./services/enhancedSyncService');
 const app = express();
 const server = http.createServer(app);
 
-// Fix Socket.IO configuration for stability
+// Fix Socket.IO configuration for production
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: [
+      "http://localhost:3000", 
+      "http://localhost:3001",
+      /^https:\/\/.*\.vercel\.app$/ // Allow all Vercel URLs
+    ],
     methods: ["GET", "POST"],
     credentials: true
   },
   transports: ['websocket', 'polling'],
   allowEIO3: true,
-  pingTimeout: 120000,    // 2 minutes (was 60s)
-  pingInterval: 30000,    // 30 seconds (was 25s)
-  upgradeTimeout: 30000,  // 30 seconds for upgrade
-  maxHttpBufferSize: 1e6, // 1MB
-  connectTimeout: 45000,  // 45 seconds connection timeout
+  pingTimeout: 120000,
+  pingInterval: 30000,
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e6,
+  connectTimeout: 45000,
   serveClient: false,
   allowUpgrades: true,
   perMessageDeflate: false
@@ -35,16 +39,34 @@ const io = socketIo(server, {
 
 // Middleware
 app.use(cors({
-  origin: ["http://localhost:3000", "http://localhost:3001"],
+  origin: [
+    "http://localhost:3000", 
+    "http://localhost:3001",
+    /^https:\/\/.*\.vercel\.app$/ // Allow all Vercel URLs
+  ],
   credentials: true
 }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+// Remove these lines since we're not serving frontend:
+// app.use(express.static(path.join(__dirname, '../frontend/build')));
 
 // Create logs directory if it doesn't exist
 if (!fs.existsSync('logs')) {
   fs.mkdirSync('logs');
 }
+
+// Initialize enhanced sync service
+const syncService = new EnhancedSyncService(io);
+
+// Root route for backend health check
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Firebase Sync Backend is running!',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 // Initialize enhanced sync service
 const syncService = new EnhancedSyncService(io);
@@ -323,11 +345,6 @@ io.on('error', (error) => {
   logger.error('❌ Socket.IO error:', error);
 });
 
-// Serve frontend for all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
-});
-
 // Initialize server
 const PORT = process.env.PORT || 3001;
 const SYNC_INTERVAL = process.env.SYNC_INTERVAL_MINUTES || 1;
@@ -342,7 +359,7 @@ async function startServer() {
     // Discover collections on startup
     await syncService.discoverCollections();
     
-    // 🔥 MAIN AUTO-SYNC EVERY 10 MINUTES (ONLY ONE WE WANT)
+    // 🔥 MAIN AUTO-SYNC EVERY 10 MINUTES
     cron.schedule('*/10 * * * *', async () => {
       logger.info('🔄 Auto-sync triggered (every 10 minutes)');
       io.emit('autoSyncTriggered', { 
@@ -351,20 +368,6 @@ async function startServer() {
       });
       await syncService.performFullSync();
     });
-
-    // ❌ DISABLE THESE - They're causing extra syncing!
-    // 
-    // // Schedule regular sync (incremental) - includes auth
-    // cron.schedule(`*/${SYNC_INTERVAL} * * * *`, async () => {
-    //   logger.info('⏰ Scheduled enhanced sync triggered');
-    //   await syncService.performFullSync();
-    // });
-    //
-    // // Schedule auth-only sync more frequently
-    // cron.schedule(`*/${AUTH_SYNC_INTERVAL} * * * *`, async () => {
-    //   logger.info('🔐 Scheduled auth sync triggered');
-    //   await syncService.forceFullAuthSync();
-    // });
 
     // Keep collection discovery (useful for schema changes)
     cron.schedule('*/5 * * * *', async () => {
@@ -381,11 +384,11 @@ async function startServer() {
 
     // Start server
     server.listen(PORT, () => {
-      logger.info(`🚀 Enhanced Firebase Sync Server (Firestore + Auth) running on port ${PORT}`);
-      logger.info(`🔄 ONLY Auto-sync: Every 10 minutes`);
+      logger.info(`🚀 Firebase Sync Backend running on port ${PORT}`);
+      logger.info(`🔄 Auto-sync: Every 10 minutes`);
       logger.info(`🔍 Collection discovery: Every 5 minutes`);
       logger.info(`🔍 Integrity checks: Every hour`);
-      logger.info(`🌐 Dashboard available at: http://localhost:${PORT}`);
+      logger.info(`🌐 API available at: http://localhost:${PORT}`);
     });
     
   } catch (error) {
