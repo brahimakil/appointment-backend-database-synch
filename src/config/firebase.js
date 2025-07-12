@@ -1,29 +1,60 @@
 const admin = require('firebase-admin');
 const { logger } = require('../utils/logger');
-const path = require('path');
 
-// Parse service account credentials from environment variables
-const parseServiceAccount = (credentialsJson) => {
-  try {
-    return JSON.parse(credentialsJson);
-  } catch (error) {
-    logger.error('❌ Failed to parse service account credentials:', error);
-    throw new Error('Invalid service account credentials');
+// Validate required environment variables
+const requiredVars = [
+  'FIREBASE_TYPE', 'FIREBASE_PROJECT_ID', 'FIREBASE_PRIVATE_KEY_ID', 
+  'FIREBASE_PRIVATE_KEY', 'FIREBASE_CLIENT_EMAIL', 'FIREBASE_CLIENT_ID',
+  'BACKUP_FIREBASE_TYPE', 'BACKUP_FIREBASE_PROJECT_ID', 'BACKUP_FIREBASE_PRIVATE_KEY_ID',
+  'BACKUP_FIREBASE_PRIVATE_KEY', 'BACKUP_FIREBASE_CLIENT_EMAIL', 'BACKUP_FIREBASE_CLIENT_ID'
+];
+
+requiredVars.forEach(varName => {
+  if (!process.env[varName]) {
+    logger.error(`❌ Missing required environment variable: ${varName}`);
+    throw new Error(`Missing required environment variable: ${varName}`);
   }
+});
+
+// Construct service account credentials from environment variables
+const mainServiceAccount = {
+  type: process.env.FIREBASE_TYPE,
+  project_id: process.env.FIREBASE_PROJECT_ID,
+  private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+  private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  client_email: process.env.FIREBASE_CLIENT_EMAIL,
+  client_id: process.env.FIREBASE_CLIENT_ID,
+  auth_uri: process.env.FIREBASE_AUTH_URI,
+  token_uri: process.env.FIREBASE_TOKEN_URI,
+  auth_provider_x509_cert_url: process.env.FIREBASE_AUTH_PROVIDER_CERT_URL,
+  client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
+  universe_domain: process.env.FIREBASE_UNIVERSE_DOMAIN
+};
+
+const backupServiceAccount = {
+  type: process.env.BACKUP_FIREBASE_TYPE,
+  project_id: process.env.BACKUP_FIREBASE_PROJECT_ID,
+  private_key_id: process.env.BACKUP_FIREBASE_PRIVATE_KEY_ID,
+  private_key: process.env.BACKUP_FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  client_email: process.env.BACKUP_FIREBASE_CLIENT_EMAIL,
+  client_id: process.env.BACKUP_FIREBASE_CLIENT_ID,
+  auth_uri: process.env.BACKUP_FIREBASE_AUTH_URI,
+  token_uri: process.env.BACKUP_FIREBASE_TOKEN_URI,
+  auth_provider_x509_cert_url: process.env.BACKUP_FIREBASE_AUTH_PROVIDER_CERT_URL,
+  client_x509_cert_url: process.env.BACKUP_FIREBASE_CLIENT_CERT_URL,
+  universe_domain: process.env.BACKUP_FIREBASE_UNIVERSE_DOMAIN
 };
 
 // Initialize Firebase Admin SDK for main database
-const mainServiceAccount = parseServiceAccount(process.env.MAIN_SERVICE_ACCOUNT_JSON);
 const mainApp = admin.initializeApp({
   credential: admin.credential.cert(mainServiceAccount),
-  projectId: 'ai-client-system'
+  projectId: process.env.FIREBASE_PROJECT_ID
 }, 'main');
 
 // Initialize Firebase Admin SDK for backup database
-const backupServiceAccount = parseServiceAccount(process.env.BACKUP_SERVICE_ACCOUNT_JSON);
 const backupApp = admin.initializeApp({
   credential: admin.credential.cert(backupServiceAccount),
-  projectId: 'ai-client-system-backup'
+  projectId: process.env.BACKUP_FIREBASE_PROJECT_ID
 }, 'backup');
 
 const mainDb = admin.firestore(mainApp);
